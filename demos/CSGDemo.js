@@ -1,76 +1,73 @@
+import * as THREE from "../lib/three.module.js";
+import CSG from "../three-csg.js";
+import app from "../v2/app3.js";
+let { scene } = app;
 
-import * as THREE from '../lib/three.module.js';
-import {OrbitControls} from '../lib/jsm/OrbitControls.js';
-import CSG from "../three-csg.js"
-import Environment from "../v2/cool-env.js"
-//import "../v2/csg-toy.js"
-import UI from "../v2/ui.js"
-import app from "../v2/app3.js"
-let {renderer,scene,camera} = app;
+let mkMat = (color) =>
+  new THREE.MeshStandardMaterial({
+    color: color,
+    roughness: 1,
+    metalness: 0.8,
+    // wireframe: true,
+  });
 
-UI(app);
-let tx = app.environment.makeProceduralTexture(256,(u,v)=>{
-    let rb = ((Math.random()*128)|0) * (((((u*2)&1)^((v*2)&1))|0)?1:2)
-    return (rb*256)|(rb*256*256)|(rb*256*256*256)|0x000000ff
-})
-tx.repeat.set(2,2);
-tx.wrapS = tx.wrapT = THREE.RepeatWrapping
+let box = new THREE.Mesh(
+  new THREE.PlaneGeometry(2, 2, 100, 100, ),
+  mkMat("grey")
+);
+scene.add(box);
+let b1 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 0.5), mkMat("blue"));
+b1.position.x = 0;
+scene.add(b1);
 
-let mkMat=(color) => new THREE.MeshStandardMaterial({color:color,roughness:1,metalness:0.8,map:tx});
-let rnd=(rng)=>((Math.random()*2)-1)*(rng||1)
+let b2 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 0.5), mkMat("grey"));
+b2.position.x = 0.5;
+// scene.add(b2);
 
-let box = new THREE.Mesh(new THREE.BoxGeometry(2,2,2),mkMat('grey'))
-scene.add(box)
-let sphere = new THREE.Mesh(new THREE.SphereGeometry(1.2,8,8),mkMat('grey'))
-scene.add(sphere)
-
-function doCSG(a,b,op,mat){
-    let bspA = CSG.fromMesh( a );
-    let bspB = CSG.fromMesh( b );
-    let bspC = bspA[op]( bspB );
-    let result = CSG.toMesh( bspC, a.matrix );
-    result.material = mat;
-    result.castShadow  = result.receiveShadow = true;
-    return result;
+function doCSG(a, b, op, mat) {
+  let bspA = CSG.fromMesh(a);
+  let bspB = CSG.fromMesh(b);
+  let bspC = bspA[op](bspB);
+  let result = CSG.toMesh(bspC, a.matrix, mat);
+  result.castShadow = result.receiveShadow = true;
+  return result;
 }
 
-let subMaterial = mkMat('red')
-let intersectMaterial = mkMat('green')
-let unionMaterial = mkMat('blue');
-let results = []
+let subMaterial = mkMat("red");
+let results = [];
 
-function recompute(){
-    for(let i=0;i<results.length;i++){
-        let m = results[i]
-        m.parent.remove(m)
-        m.geometry.dispose();
-    }
-    results = [];
+function recompute() {
+  for (let i = 0; i < results.length; i++) {
+    let m = results[i];
+    m.parent.remove(m);
+    m.geometry.dispose();
+  }
+  results = [];
 
-    box.updateMatrix();
-    sphere.updateMatrix();
+  box.updateMatrix();
+  b1.updateMatrix();
+  b2.updateMatrix();
 
-    results.push(doCSG(box,sphere,'subtract',subMaterial))
-    results.push(doCSG(box,sphere,'intersect',intersectMaterial))
-    results.push(doCSG(box,sphere,'union',unionMaterial))
+  const a = doCSG(box, b1, "subtract", subMaterial);
+  // const b = doCSG(a, b2, "subtract", subMaterial);
 
-    results.push(doCSG(sphere,box,'subtract',subMaterial))
-    results.push(doCSG(sphere,box,'intersect',intersectMaterial))
-    results.push(doCSG(sphere,box,'union',unionMaterial))
+  results.push(a);
 
-    for(let i=0;i<results.length;i++){
-        let r = results[i];
-        r.castShadow = r.receiveShadow = true;
-        scene.add(r)
+  for (let i = 0; i < results.length; i++) {
+    let r = results[i];
+    r.castShadow = r.receiveShadow = true;
+    scene.add(r);
 
-        r.position.z += -5 + ((i%3)*5)
-        r.position.x += -5 + (((i/3)|0)*10)
-    }
+    r.position.z += -5 + (i % 3) * 5;
+    r.position.x += -5 + ((i / 3) | 0) * 10;
+  }
 }
-document.addEventListener('afterRender',()=>{
-    let time = performance.now()
-    sphere.position.x=Math.sin(time*0.001)*2;
-    sphere.position.z=Math.cos(time*0.0011)*0.5;
-    sphere.position.t=Math.sin(time*-0.0012)*0.5;
-    recompute();
-})
+recompute();
+
+document.addEventListener("afterRender", () => {
+  let time = performance.now();
+  //   sphere.position.x = Math.sin(time * 0.001) * 2;
+  //   sphere.position.z = Math.cos(time * 0.0011) * 0.5;
+  //   sphere.position.t = Math.sin(time * -0.0012) * 0.5;
+  //   recompute();
+});
